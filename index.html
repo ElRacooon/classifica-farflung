@@ -8,10 +8,10 @@
   /* Tema sempre chiaro, anche se il telefono è in modalità scura: più leggibile */
   :root {
     color-scheme: light;
-    --bg: #fbfaf7; --card: #ffffff; --ink: #142420; --muted: #4f5c58; --line: #e4e0d6;
+    --bg: #ece6d8; --campo: #f8f6f1; --card: #ffffff; --ink: #142420; --muted: #4f5c58; --line: #e4e0d6;
     --accent: #17694f; --accent-ink: #ffffff; --soft: #edf5f1; --gold: #b8901a;
     --err: #b3402a; --me: #fff6d9;
-    --trama-1: rgba(20, 36, 32, .05); --trama-2: rgba(20, 36, 32, .10); --trama-3: rgba(255, 255, 255, .95);
+    --trama-1: rgba(60, 50, 30, .07); --trama-2: rgba(60, 50, 30, .13); --trama-3: rgba(255, 255, 255, .7);
   }
   * { box-sizing: border-box; }
   body {
@@ -19,8 +19,22 @@
     font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
-  header h1 { margin: 0; font-size: 28px; letter-spacing: .02em; }
-  header p { margin: 4px 0 20px; color: var(--muted); }
+  .testata {
+    background: linear-gradient(135deg, #17694f, #23906c); color: #fff;
+    border-radius: 16px; padding: 20px 18px 18px; margin-bottom: 18px;
+    box-shadow: 0 6px 18px rgba(23, 105, 79, .25);
+  }
+  .testata h1 { margin: 0 0 14px; font-size: 28px; letter-spacing: .01em; }
+  .passi { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .passi li {
+    display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px;
+    background: rgba(255, 255, 255, .18); border-radius: 999px; font-size: 15px; font-weight: 600;
+  }
+  .passi span {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+    border-radius: 50%; background: #fff; color: #17694f; font-size: 13px; font-weight: 800;
+  }
+  .passi a { color: #fff; }
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 14px;
     padding: 18px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(20, 36, 32, .06);
@@ -28,7 +42,7 @@
   .card h2 { margin: 0 0 12px; font-size: 18px; }
   label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
   input, textarea, select {
-    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    width: 100%; font: inherit; color: var(--ink); background: var(--campo);
     border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
   }
   textarea { min-height: 110px; resize: vertical; }
@@ -60,7 +74,7 @@
   tr.me td { background: var(--me); }
   tr.cliccabile { cursor: pointer; }
   tr.cliccabile:hover td { background: var(--soft); }
-  tr.dettaglio td { font-size: 14px; background: var(--bg); line-height: 1.6; }
+  tr.dettaglio td { font-size: 14px; background: var(--campo); line-height: 1.6; }
   tr.dettaglio a { color: var(--accent); font-weight: 600; }
   .freccia { color: var(--muted); font-size: 12px; margin-left: 4px; }
   .muted { color: var(--muted); }
@@ -96,9 +110,13 @@
 </head>
 <body>
 <main>
-  <header>
-    <h1>🧭 Classifica Farflung</h1>
-    <p>Gioca su <a href="https://farflung.game/" target="_blank" rel="noopener">farflung.game</a>, copia il risultato e incollalo qui.</p>
+  <header class="testata">
+    <h1>🦝 Classifica Farflung</h1>
+    <ol class="passi">
+      <li><span>1</span>Gioca su <a href="https://farflung.game/" target="_blank" rel="noopener">farflung.game</a></li>
+      <li><span>2</span>Premi «Condividi»</li>
+      <li><span>3</span>Incolla qui sotto</li>
+    </ol>
   </header>
 
   <div id="demo" class="banner" hidden>
