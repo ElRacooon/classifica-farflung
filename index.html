@@ -5,31 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Classifica Farflung</title>
 <style>
+  /* Tema sempre chiaro, anche se il telefono è in modalità scura: più leggibile */
   :root {
-    --bg: #f4f1ea; --card: #fffdf8; --ink: #1f2a2e; --muted: #6b7473; --line: #e3ddd0;
-    --accent: #1f6f5c; --accent-ink: #ffffff; --soft: #e7f1ec; --gold: #b8901a;
-    --err: #b3402a; --me: #fff4d1;
-    --trama-1: rgba(31, 42, 46, .07); --trama-2: rgba(31, 42, 46, .13); --trama-3: rgba(255, 255, 255, .7);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #121816; --card: #1a2220; --ink: #e8ece9; --muted: #93a09b; --line: #2a3532;
-      --accent: #4fb393; --accent-ink: #0d1412; --soft: #1f2f2a; --gold: #e0bd4a;
-      --err: #e07a62; --me: #3a3420;
-      --trama-1: rgba(232, 236, 233, .05); --trama-2: rgba(232, 236, 233, .10); --trama-3: rgba(18, 24, 22, .9);
-    }
+    color-scheme: light;
+    --bg: #fbfaf7; --card: #ffffff; --ink: #142420; --muted: #4f5c58; --line: #e4e0d6;
+    --accent: #17694f; --accent-ink: #ffffff; --soft: #edf5f1; --gold: #b8901a;
+    --err: #b3402a; --me: #fff6d9;
+    --trama-1: rgba(20, 36, 32, .05); --trama-2: rgba(20, 36, 32, .10); --trama-3: rgba(255, 255, 255, .95);
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background-color: var(--bg); background-size: 132px 132px; color: var(--ink);
-    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; background-color: var(--bg); background-size: 140px 140px; color: var(--ink);
+    font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
   header h1 { margin: 0; font-size: 28px; letter-spacing: .02em; }
   header p { margin: 4px 0 20px; color: var(--muted); }
   .card {
     background: var(--card); border: 1px solid var(--line); border-radius: 14px;
-    padding: 18px; margin-bottom: 18px;
+    padding: 18px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(20, 36, 32, .06);
   }
   .card h2 { margin: 0 0 12px; font-size: 18px; }
   label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
@@ -60,7 +54,7 @@
   .nav select { flex: 1; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); }
-  th { font-size: 13px; color: var(--muted); font-weight: 500; }
+  th { font-size: 14px; color: var(--muted); font-weight: 500; }
   td.num, th.num { text-align: right; }
   td.pos { width: 2.5em; font-weight: 700; }
   tr.me td { background: var(--me); }
@@ -72,7 +66,7 @@
   .muted { color: var(--muted); }
   .empty { color: var(--muted); padding: 14px 0; text-align: center; }
   .letto { margin-top: 8px; font-size: 14px; font-weight: 600; min-height: 1.2em; }
-  .nota { margin: -6px 0 12px; color: var(--muted); font-size: 13px; }
+  .nota { margin: -6px 0 12px; color: var(--muted); font-size: 14px; }
   .velo { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; }
   .velo p { margin: 0 0 10px; }
   .chat-lista { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
@@ -93,10 +87,10 @@
     background: none; color: var(--accent); padding: 0; font-weight: 600; font-size: 14px;
     text-decoration: underline; cursor: pointer;
   }
-  .bolla .meta { font-size: 12px; opacity: .75; margin-bottom: 2px; }
+  .bolla .meta { font-size: 13px; opacity: .8; margin-bottom: 2px; }
   .chat-form { display: flex; gap: 8px; margin-top: 12px; }
   .chat-form input { flex: 1; min-width: 0; }
-  .foot { color: var(--muted); font-size: 13px; text-align: center; }
+  .foot { color: var(--muted); font-size: 14px; text-align: center; }
   .foot a { color: inherit; }
 </style>
 </head>
@@ -553,19 +547,24 @@ $("next").addEventListener("click", () => { $("scelta").selectedIndex--; selezio
 function disegnaTrama() {
   const st = getComputedStyle(document.documentElement);
   const [c1, c2, c3] = ["--trama-1", "--trama-2", "--trama-3"].map(v => st.getPropertyValue(v).trim());
+  // Muso di procione: orecchie, guance a punta, mascherina, striscia sulla fronte, muso chiaro
   const procione = `
-    <path d="M-20-12 L-25-31 L-7-21Z M20-12 L25-31 L7-21Z" fill="${c1}"/>
-    <path d="M-24-8 Q-24-25 0-25 Q24-25 24-8 Q24 9 0 21 Q-24 9 -24-8Z" fill="${c1}"/>
-    <path d="M-22-6 Q-12-15 -3-7 L0-3 L3-7 Q12-15 22-6 Q18 5 8 2 L0 5 L-8 2 Q-18 5 -22-6Z" fill="${c2}"/>
-    <circle cx="-10" cy="-5" r="3" fill="${c3}"/><circle cx="10" cy="-5" r="3" fill="${c3}"/>
-    <ellipse cx="0" cy="11" rx="4.5" ry="3" fill="${c2}"/>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="132" height="132" viewBox="0 0 132 132">
-    <g transform="translate(33 38) rotate(-12) scale(.8)">${procione}</g>
-    <g transform="translate(99 104) rotate(10) scale(.8)">${procione}</g></svg>`;
+    <path d="M-23-8 C-33-24 -27-37 -12-25Z M23-8 C33-24 27-37 12-25Z" fill="${c1}"/>
+    <path d="M-21-13 C-26-23 -23-30 -15-24Z M21-13 C26-23 23-30 15-24Z" fill="${c2}"/>
+    <path d="M0-25 C14-25 24-17 26-5 L34 3 L23 8 C17 18 9 23 0 23 C-9 23 -17 18 -23 8 L-34 3 L-26-5 C-24-17 -14-25 0-25Z" fill="${c1}"/>
+    <path d="M-2.5-24 L2.5-24 L1.5-7 L-1.5-7Z" fill="${c2}"/>
+    <path d="M-25 1 C-21-10 -9-11 -3-4 L0-1 L3-4 C9-11 21-10 25 1 C19 7 9 7 3 3 L0 5 L-3 3 C-9 7 -19 7 -25 1Z" fill="${c2}"/>
+    <path d="M-22-9 C-16-14 -8-14 -4-10 M22-9 C16-14 8-14 4-10" stroke="${c3}" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="-11" cy="-2" r="3.4" fill="${c3}"/><circle cx="11" cy="-2" r="3.4" fill="${c3}"/>
+    <circle cx="-10.5" cy="-1.5" r="1.6" fill="${c2}"/><circle cx="10.5" cy="-1.5" r="1.6" fill="${c2}"/>
+    <ellipse cx="0" cy="13" rx="10" ry="7.5" fill="${c3}"/>
+    <path d="M-4 9.5 Q0 7 4 9.5 Q3 13 0 13.5 Q-3 13 -4 9.5Z" fill="${c2}"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140" viewBox="0 0 140 140">
+    <g transform="translate(35 38) rotate(-10) scale(.75)">${procione}</g>
+    <g transform="translate(105 108) rotate(10) scale(.75)">${procione}</g></svg>`;
   document.body.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 disegnaTrama();
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", disegnaTrama);
 
 function blocca(testo) {
   $("blocco-testo").textContent = testo;
