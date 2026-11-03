@@ -63,6 +63,19 @@
   td.pos { width: 2.5em; font-weight: 700; }
   tr.me td { background: var(--me); }
   .empty { color: var(--muted); padding: 14px 0; text-align: center; }
+  .letto { margin-top: 8px; font-size: 14px; font-weight: 600; min-height: 1.2em; }
+  .nota { margin: -6px 0 12px; color: var(--muted); font-size: 13px; }
+  .velo { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; }
+  .velo p { margin: 0 0 10px; }
+  .chat-lista { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+  .bolla {
+    background: var(--soft); border-radius: 12px; padding: 8px 12px; max-width: 85%;
+    align-self: flex-start; overflow-wrap: anywhere;
+  }
+  .bolla.mio { background: var(--accent); color: var(--accent-ink); align-self: flex-end; }
+  .bolla .meta { font-size: 12px; opacity: .75; margin-bottom: 2px; }
+  .chat-form { display: flex; gap: 8px; margin-top: 12px; }
+  .chat-form input { flex: 1; min-width: 0; }
   .foot { color: var(--muted); font-size: 13px; text-align: center; }
   .foot a { color: inherit; }
 </style>
@@ -89,16 +102,7 @@
     <p id="saluto" style="margin:0;color:var(--muted)"></p>
     <label for="testo">Risultato condiviso da Farflung</label>
     <textarea id="testo" placeholder="Incolla qui il testo del pulsante «Condividi»"></textarea>
-    <div class="row">
-      <div>
-        <label for="sped">Spedizione n.</label>
-        <input id="sped" type="number" min="1" inputmode="numeric">
-      </div>
-      <div>
-        <label for="km">Distanza (km)</label>
-        <input id="km" type="number" min="0" inputmode="numeric">
-      </div>
-    </div>
+    <div id="letto" class="letto" aria-live="polite"></div>
     <button id="invia" class="submit">Invia</button>
     <div id="msg" class="msg" role="status"></div>
   </section>
@@ -114,6 +118,22 @@
       <button id="next" class="ghost" aria-label="Spedizione successiva">▶</button>
     </div>
     <div id="classifica"></div>
+  </section>
+
+  <section class="card">
+    <h2>💬 Chat</h2>
+    <p class="nota">I messaggi spariscono dopo 24 ore.</p>
+    <div id="chat-velo" class="velo">
+      <p>Non hai ancora inviato il risultato di oggi: nella chat potrebbero esserci spoiler.</p>
+      <button id="chat-mostra" class="ghost">Mostra comunque</button>
+    </div>
+    <div id="chat-corpo" hidden>
+      <div id="chat-lista" class="chat-lista"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-testo" maxlength="500" placeholder="Scrivi un messaggio…" autocomplete="off" aria-label="Messaggio">
+        <button id="chat-invia">Invia</button>
+      </form>
+    </div>
   </section>
   </div>
 
@@ -135,6 +155,9 @@ let righe = [];
 let vista = "giorno";
 let selezionata = spedizioneDiOggi();
 let memoriaDemo = [];
+let memoriaChat = [];
+let messaggi = [];
+let spoilerOk = false;
 let invito = null;   // codice personale, arriva dal link #invito=...
 let mioNome = null;
 
@@ -153,15 +176,14 @@ function leggi(chiave) { try { return localStorage.getItem(chiave); } catch { re
 function scrivi(chiave, valore) { try { localStorage.setItem(chiave, valore); } catch {} }
 
 // --- Estrazione di spedizione e km dal testo condiviso ---
+// Formato condiviso: "Farflung #30 · 150/500 km*" (150 = punteggio, 500 = massimo)
 function analizza(testo) {
   const t = testo || "";
-  const s = t.match(/#\s*(\d{1,5})/) || t.match(/expedition\D{0,5}(\d{1,5})/i);
-  let km = null;
-  const re = /(\d{1,3}(?:[.,'  ]\d{3})+|\d+)(?:[.,]\d+)?\s*km\b/gi;
-  for (const m of t.matchAll(re)) {
-    const v = parseInt(m[1].replace(/\D/g, ""), 10);
-    if (km === null || v > km) km = v;  // il totale è il numero più grande
-  }
+  const numero = (s) => parseInt(s.replace(/\D/g, ""), 10);
+  const s = t.match(/farflung\s*#\s*(\d{1,5})/i) || t.match(/#\s*(\d{1,5})/) || t.match(/[?&]e=(\d{1,5})/);
+  const conMassimo = t.match(/(\d[\d.,'  ]*)\s*\/\s*\d[\d.,'  ]*\s*km/i);
+  const solo = t.match(/(\d[\d.,'  ]*)\s*km\b/i);
+  const km = conMassimo ? numero(conMassimo[1]) : solo ? numero(solo[1]) : null;
   return { sped: s ? parseInt(s[1], 10) : null, km };
 }
 
@@ -207,6 +229,24 @@ async function inserisci(riga) {
     return;
   }
   await rpc("invia", { p_codice: invito, p_spedizione: riga.spedizione, p_km: riga.km, p_testo: riga.testo });
+}
+
+async function caricaChat() {
+  if (DEMO) {
+    try { memoriaChat = JSON.parse(leggi("ff-chat") || "[]"); } catch {}
+    const limite = Date.now() - 86400000;
+    return memoriaChat.filter(m => Date.parse(m.created_at) > limite);
+  }
+  return rpc("chat", { p_codice: invito });
+}
+
+async function scriviMessaggio(testo) {
+  if (DEMO) {
+    memoriaChat.push({ id: Date.now(), nome: mioNome, testo, created_at: new Date().toISOString() });
+    scrivi("ff-chat", JSON.stringify(memoriaChat));
+    return;
+  }
+  await rpc("scrivi_messaggio", { p_codice: invito, p_testo: testo });
 }
 
 // --- Rendering ---
@@ -268,6 +308,38 @@ function disegna() {
   $("tab-generale").setAttribute("aria-selected", vista === "generale");
   $("nav").hidden = vista !== "giorno";
   $("classifica").innerHTML = vista === "giorno" ? disegnaGiorno() : disegnaGenerale();
+  disegnaChat();
+}
+
+function oraDi(iso) {
+  const d = new Date(iso);
+  const ora = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? ora : "ieri " + ora;
+}
+
+function disegnaChat() {
+  // Finché non hai inviato il risultato di oggi la chat resta coperta, per evitare spoiler
+  const giocatoOggi = righe.some(r => r.nome === mioNome && r.spedizione === spedizioneDiOggi());
+  const coperta = !giocatoOggi && !spoilerOk;
+  $("chat-velo").hidden = !coperta;
+  $("chat-corpo").hidden = coperta;
+  if (coperta) return;
+  const lista = $("chat-lista");
+  const eraInFondo = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 40;
+  lista.innerHTML = messaggi.length
+    ? messaggi.map(m => `<div class="bolla ${ioSono(m.nome) ? "mio" : ""}"><div class="meta">${esc(m.nome)} · ${oraDi(m.created_at)}</div>${esc(m.testo)}</div>`).join("")
+    : `<div class="empty">Nessun messaggio nelle ultime 24 ore.</div>`;
+  if (eraInFondo) lista.scrollTop = lista.scrollHeight;
+}
+
+async function ricaricaChat() {
+  if (document.hidden) return;
+  try {
+    messaggi = await caricaChat();
+    disegnaChat();
+  } catch (e) {
+    $("chat-lista").innerHTML = `<div class="empty">Chat non disponibile.<br><small>${esc(e.message)}</small></div>`;
+  }
 }
 
 async function ricarica() {
@@ -282,24 +354,26 @@ async function ricarica() {
 function messaggio(testo, tipo) { $("msg").textContent = testo; $("msg").className = "msg " + (tipo || ""); }
 
 // --- Eventi ---
+let letto = { sped: null, km: null };
+
 $("testo").addEventListener("input", () => {
-  const { sped, km } = analizza($("testo").value);
-  $("sped").value = sped ?? spedizioneDiOggi();
-  if (km !== null) $("km").value = km;
-  messaggio(km === null && $("testo").value.trim() ? "Non trovo i km nel testo: inseriscili a mano." : "");
+  letto = analizza($("testo").value);
+  const pieno = $("testo").value.trim() !== "";
+  $("letto").textContent = !pieno ? ""
+    : (letto.sped && letto.km !== null) ? `Spedizione #${letto.sped} · ${fmt(letto.km)} km`
+    : "Non riesco a leggere il risultato: incolla tutto il testo condiviso da Farflung.";
+  messaggio("");
 });
 
 $("invia").addEventListener("click", async () => {
-  const spedizione = parseInt($("sped").value, 10);
-  const km = parseInt($("km").value, 10);
-  if (!(spedizione > 0)) return messaggio("Manca il numero della spedizione.", "err");
-  if (!(km >= 0)) return messaggio("Mancano i km.", "err");
+  const { sped: spedizione, km } = letto;
+  if (!spedizione || km === null) return messaggio("Incolla il testo condiviso da Farflung (es. «Farflung #30 · 150/500 km»).", "err");
   if (spedizione > spedizioneDiOggi()) return messaggio("Quella spedizione non è ancora uscita.", "err");
   $("invia").disabled = true;
   try {
-    await inserisci({ spedizione, km, testo: $("testo").value.slice(0, 1500) });
+    await inserisci({ spedizione, km, testo: null });  // salviamo solo il punteggio, non le risposte
     messaggio(`Fatto! ${fmt(km)} km registrati per la spedizione #${spedizione}.`, "ok");
-    $("testo").value = ""; $("km").value = "";
+    $("testo").value = ""; $("letto").textContent = ""; letto = { sped: null, km: null };
     selezionata = spedizione; vista = "giorno";
     await ricarica();
   } catch (e) {
@@ -310,6 +384,26 @@ $("invia").addEventListener("click", async () => {
     messaggio(e.doppio ? `Hai già inviato un risultato per la spedizione #${spedizione}.` : (testi[e.codice] || e.message), "err");
   } finally {
     $("invia").disabled = false;
+  }
+});
+
+$("chat-mostra").addEventListener("click", () => { spoilerOk = true; disegnaChat(); });
+
+$("chat-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const testo = $("chat-testo").value.trim();
+  if (!testo) return;
+  $("chat-invia").disabled = true;
+  try {
+    await scriviMessaggio(testo);
+    $("chat-testo").value = "";
+    await ricaricaChat();
+    $("chat-lista").scrollTop = $("chat-lista").scrollHeight;
+  } catch (e) {
+    alert("Messaggio non inviato: " + e.message);
+  } finally {
+    $("chat-invia").disabled = false;
+    $("chat-testo").focus();
   }
 });
 
@@ -343,9 +437,11 @@ async function avvia() {
   if (!mioNome) return blocca("Il tuo link d'invito non è valido o è stato revocato. Chiedine uno nuovo.");
   $("saluto").textContent = `Ciao ${mioNome}! Questo dispositivo ora è collegato al tuo invito.`;
   $("app").hidden = false;
-  $("sped").value = spedizioneDiOggi();
   ricarica();
+  ricaricaChat();
   setInterval(ricarica, 60000);
+  setInterval(ricaricaChat, 10000);
+  document.addEventListener("visibilitychange", ricaricaChat);
 }
 
 avvia();
