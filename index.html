@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Classifica Farflung</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --card: #fffdf8; --ink: #1f2a2e; --muted: #6b7473; --line: #e3ddd0;
+    --accent: #1f6f5c; --accent-ink: #ffffff; --soft: #e7f1ec; --gold: #b8901a;
+    --err: #b3402a; --me: #fff4d1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121816; --card: #1a2220; --ink: #e8ece9; --muted: #93a09b; --line: #2a3532;
+      --accent: #4fb393; --accent-ink: #0d1412; --soft: #1f2f2a; --gold: #e0bd4a;
+      --err: #e07a62; --me: #3a3420;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  header h1 { margin: 0; font-size: 28px; letter-spacing: .02em; }
+  header p { margin: 4px 0 20px; color: var(--muted); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; margin-bottom: 18px;
+  }
+  .card h2 { margin: 0 0 12px; font-size: 18px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea, select {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  textarea { min-height: 110px; resize: vertical; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; min-width: 0; }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border: 0; border-radius: 10px;
+    padding: 11px 16px; background: var(--accent); color: var(--accent-ink);
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: var(--soft); color: var(--ink); padding: 8px 12px; }
+  .submit { width: 100%; margin-top: 14px; }
+  .msg { margin-top: 10px; font-size: 14px; min-height: 1.2em; }
+  .msg.err { color: var(--err); }
+  .msg.ok { color: var(--accent); }
+  .banner {
+    background: var(--me); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-bottom: 18px;
+  }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button { flex: 1; background: var(--soft); color: var(--ink); }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+  .nav { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .nav select { flex: 1; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+  th { font-size: 13px; color: var(--muted); font-weight: 500; }
+  td.num, th.num { text-align: right; }
+  td.pos { width: 2.5em; font-weight: 700; }
+  tr.me td { background: var(--me); }
+  .empty { color: var(--muted); padding: 14px 0; text-align: center; }
+  .foot { color: var(--muted); font-size: 13px; text-align: center; }
+  .foot a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🧭 Classifica Farflung</h1>
+    <p>Gioca su <a href="https://farflung.game/" target="_blank" rel="noopener">farflung.game</a>, copia il risultato e incollalo qui.</p>
+  </header>
+
+  <div id="demo" class="banner" hidden>
+    Modalità demo: Supabase non è ancora configurato, quindi i risultati restano solo in questo browser.
+  </div>
+
+  <section id="blocco" class="card" hidden>
+    <h2>🔒 Solo su invito</h2>
+    <p id="blocco-testo" style="margin:0"></p>
+  </section>
+
+  <div id="app" hidden>
+  <section class="card">
+    <h2>Inserisci il tuo risultato</h2>
+    <p id="saluto" style="margin:0;color:var(--muted)"></p>
+    <label for="testo">Risultato condiviso da Farflung</label>
+    <textarea id="testo" placeholder="Incolla qui il testo del pulsante «Condividi»"></textarea>
+    <div class="row">
+      <div>
+        <label for="sped">Spedizione n.</label>
+        <input id="sped" type="number" min="1" inputmode="numeric">
+      </div>
+      <div>
+        <label for="km">Distanza (km)</label>
+        <input id="km" type="number" min="0" inputmode="numeric">
+      </div>
+    </div>
+    <button id="invia" class="submit">Invia</button>
+    <div id="msg" class="msg" role="status"></div>
+  </section>
+
+  <section class="card">
+    <div class="tabs" role="tablist">
+      <button id="tab-giorno" role="tab" aria-selected="true">Giornaliera</button>
+      <button id="tab-generale" role="tab" aria-selected="false">Generale</button>
+    </div>
+    <div id="nav" class="nav">
+      <button id="prev" class="ghost" aria-label="Spedizione precedente">◀</button>
+      <select id="scelta" aria-label="Spedizione"></select>
+      <button id="next" class="ghost" aria-label="Spedizione successiva">▶</button>
+    </div>
+    <div id="classifica"></div>
+  </section>
+  </div>
+
+  <p class="foot">Classifica non ufficiale tra amici. Si aggiorna da sola ogni minuto.</p>
+</main>
+
+<script>
+// ===== CONFIGURAZIONE: incolla qui i dati del tuo progetto Supabase =====
+const SUPABASE_URL = "https://kzojrzlstqlxpmzihets.supabase.co";
+const SUPABASE_KEY = "sb_publishable_eLlqhE8gBo358leAFIVpzQ_ubdxqi_v";  // chiave "publishable" (sb_publishable_...) o "anon". MAI la secret/service_role!
+// ========================================================================
+
+// La spedizione #30 è del 3 novembre 2026 (i mesi partono da 0): serve per calcolare quella di oggi.
+const RIFERIMENTO = { spedizione: 30, data: [2026, 10, 3] };
+const DEMO = !SUPABASE_URL || !SUPABASE_KEY;
+
+const $ = (id) => document.getElementById(id);
+let righe = [];
+let vista = "giorno";
+let selezionata = spedizioneDiOggi();
+let memoriaDemo = [];
+let invito = null;   // codice personale, arriva dal link #invito=...
+let mioNome = null;
+
+function spedizioneDiOggi() {
+  const d = new Date();
+  const oggi = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return RIFERIMENTO.spedizione + Math.round((oggi - Date.UTC(...RIFERIMENTO.data)) / 86400000);
+}
+
+function dataDi(sped) {
+  const ms = Date.UTC(...RIFERIMENTO.data) + (sped - RIFERIMENTO.spedizione) * 86400000;
+  return new Date(ms).toLocaleDateString("it-IT", { day: "numeric", month: "long", timeZone: "UTC" });
+}
+
+function leggi(chiave) { try { return localStorage.getItem(chiave); } catch { return null; } }
+function scrivi(chiave, valore) { try { localStorage.setItem(chiave, valore); } catch {} }
+
+// --- Estrazione di spedizione e km dal testo condiviso ---
+function analizza(testo) {
+  const t = testo || "";
+  const s = t.match(/#\s*(\d{1,5})/) || t.match(/expedition\D{0,5}(\d{1,5})/i);
+  let km = null;
+  const re = /(\d{1,3}(?:[.,'  ]\d{3})+|\d+)(?:[.,]\d+)?\s*km\b/gi;
+  for (const m of t.matchAll(re)) {
+    const v = parseInt(m[1].replace(/\D/g, ""), 10);
+    if (km === null || v > km) km = v;  // il totale è il numero più grande
+  }
+  return { sped: s ? parseInt(s[1], 10) : null, km };
+}
+
+// --- Accesso ai dati (funzioni Supabase protette dal codice d'invito, oppure memoria locale in demo) ---
+function intestazioni() {
+  const h = { apikey: SUPABASE_KEY, "Content-Type": "application/json" };
+  if (SUPABASE_KEY.startsWith("eyJ")) h.Authorization = "Bearer " + SUPABASE_KEY;  // vecchie chiavi "anon"
+  return h;
+}
+
+async function rpc(funzione, argomenti) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${funzione}`, {
+    method: "POST", headers: intestazioni(), body: JSON.stringify(argomenti),
+  });
+  const testo = await r.text();
+  if (r.status === 409) throw Object.assign(new Error("doppio"), { doppio: true });
+  if (!r.ok) {
+    let m = ""; try { m = JSON.parse(testo).message; } catch {}
+    throw Object.assign(new Error(m || `Errore ${r.status}`), { codice: m });
+  }
+  return testo ? JSON.parse(testo) : null;
+}
+
+async function chiSono() {
+  if (DEMO) return invito;  // in demo il codice fa da nome: prova con #invito=Davide
+  return rpc("chi_sono", { p_codice: invito });
+}
+
+async function caricaTutti() {
+  if (DEMO) {
+    try { memoriaDemo = JSON.parse(leggi("ff-demo") || "[]"); } catch {}
+    return memoriaDemo;
+  }
+  return rpc("classifica", { p_codice: invito });
+}
+
+async function inserisci(riga) {
+  if (DEMO) {
+    const doppio = memoriaDemo.some(x => x.spedizione === riga.spedizione && x.nome === mioNome);
+    if (doppio) throw Object.assign(new Error("doppio"), { doppio: true });
+    memoriaDemo.push({ nome: mioNome, spedizione: riga.spedizione, km: riga.km, created_at: new Date().toISOString() });
+    scrivi("ff-demo", JSON.stringify(memoriaDemo));
+    return;
+  }
+  await rpc("invia", { p_codice: invito, p_spedizione: riga.spedizione, p_km: riga.km, p_testo: riga.testo });
+}
+
+// --- Rendering ---
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function fmt(n) { return Math.round(n).toLocaleString("de-DE"); }  // "9.870" (it-IT non separa le migliaia sotto 10.000)
+function medaglia(i) { return ["🥇", "🥈", "🥉"][i] || String(i + 1); }
+function ioSono(nome) { return nome === mioNome; }
+
+function posizioni(lista, valore) {
+  // stesso punteggio = stessa posizione
+  return lista.map((x, i) => (i > 0 && valore(x) === valore(lista[i - 1])) ? null : i)
+    .reduce((acc, p, i) => (acc.push(p === null ? acc[i - 1] : p), acc), []);
+}
+
+function aggiornaScelta() {
+  const oggi = spedizioneDiOggi();
+  const elenco = [...new Set([oggi, ...righe.map(r => r.spedizione)])].filter(n => n <= oggi).sort((a, b) => b - a);
+  if (!elenco.includes(selezionata)) selezionata = oggi;
+  $("scelta").innerHTML = elenco.map(n =>
+    `<option value="${n}" ${n === selezionata ? "selected" : ""}>#${n} · ${dataDi(n)}${n === oggi ? " (oggi)" : ""}</option>`
+  ).join("");
+  $("prev").disabled = selezionata === elenco[elenco.length - 1];
+  $("next").disabled = selezionata === elenco[0];
+}
+
+function disegnaGiorno() {
+  aggiornaScelta();
+  const lista = righe.filter(r => r.spedizione === selezionata).sort((a, b) => b.km - a.km);
+  if (!lista.length) return `<div class="empty">Ancora nessun risultato per questa spedizione.</div>`;
+  const pos = posizioni(lista, r => r.km);
+  return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km</th></tr></thead><tbody>` +
+    lista.map((r, i) => `<tr class="${ioSono(r.nome) ? "me" : ""}"><td class="pos">${medaglia(pos[i])}</td>` +
+      `<td>${esc(r.nome)}</td><td class="num">${fmt(r.km)}</td></tr>`).join("") +
+    `</tbody></table>`;
+}
+
+function disegnaGenerale() {
+  const migliori = {};
+  for (const r of righe) migliori[r.spedizione] = Math.max(migliori[r.spedizione] ?? -1, r.km);
+  const giocatori = {};
+  for (const r of righe) {
+    const k = r.nome.toLowerCase();
+    const g = giocatori[k] ??= { nome: r.nome, totale: 0, partite: 0, vittorie: 0 };
+    g.nome = r.nome; g.totale += r.km; g.partite++;
+    if (r.km === migliori[r.spedizione]) g.vittorie++;
+  }
+  const lista = Object.values(giocatori).sort((a, b) => b.totale - a.totale);
+  if (!lista.length) return `<div class="empty">Ancora nessun risultato.</div>`;
+  const pos = posizioni(lista, g => g.totale);
+  return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km totali</th><th class="num">Media</th><th class="num">🏆</th></tr></thead><tbody>` +
+    lista.map((g, i) => `<tr class="${ioSono(g.nome) ? "me" : ""}"><td class="pos">${medaglia(pos[i])}</td>` +
+      `<td>${esc(g.nome)}</td><td class="num">${fmt(g.totale)}</td>` +
+      `<td class="num">${fmt(g.totale / g.partite)}</td><td class="num">${g.vittorie}</td></tr>`).join("") +
+    `</tbody></table>`;
+}
+
+function disegna() {
+  $("tab-giorno").setAttribute("aria-selected", vista === "giorno");
+  $("tab-generale").setAttribute("aria-selected", vista === "generale");
+  $("nav").hidden = vista !== "giorno";
+  $("classifica").innerHTML = vista === "giorno" ? disegnaGiorno() : disegnaGenerale();
+}
+
+async function ricarica() {
+  try {
+    righe = await caricaTutti();
+    disegna();
+  } catch (e) {
+    $("classifica").innerHTML = `<div class="empty">Impossibile caricare la classifica.<br><small>${esc(e.message)}</small></div>`;
+  }
+}
+
+function messaggio(testo, tipo) { $("msg").textContent = testo; $("msg").className = "msg " + (tipo || ""); }
+
+// --- Eventi ---
+$("testo").addEventListener("input", () => {
+  const { sped, km } = analizza($("testo").value);
+  $("sped").value = sped ?? spedizioneDiOggi();
+  if (km !== null) $("km").value = km;
+  messaggio(km === null && $("testo").value.trim() ? "Non trovo i km nel testo: inseriscili a mano." : "");
+});
+
+$("invia").addEventListener("click", async () => {
+  const spedizione = parseInt($("sped").value, 10);
+  const km = parseInt($("km").value, 10);
+  if (!(spedizione > 0)) return messaggio("Manca il numero della spedizione.", "err");
+  if (!(km >= 0)) return messaggio("Mancano i km.", "err");
+  if (spedizione > spedizioneDiOggi()) return messaggio("Quella spedizione non è ancora uscita.", "err");
+  $("invia").disabled = true;
+  try {
+    await inserisci({ spedizione, km, testo: $("testo").value.slice(0, 1500) });
+    messaggio(`Fatto! ${fmt(km)} km registrati per la spedizione #${spedizione}.`, "ok");
+    $("testo").value = ""; $("km").value = "";
+    selezionata = spedizione; vista = "giorno";
+    await ricarica();
+  } catch (e) {
+    const testi = {
+      invito_non_valido: "Il tuo invito non è più valido. Chiedi un nuovo link.",
+      spedizione_futura: "Quella spedizione non è ancora uscita.",
+    };
+    messaggio(e.doppio ? `Hai già inviato un risultato per la spedizione #${spedizione}.` : (testi[e.codice] || e.message), "err");
+  } finally {
+    $("invia").disabled = false;
+  }
+});
+
+$("tab-giorno").addEventListener("click", () => { vista = "giorno"; disegna(); });
+$("tab-generale").addEventListener("click", () => { vista = "generale"; disegna(); });
+$("scelta").addEventListener("change", () => { selezionata = parseInt($("scelta").value, 10); disegna(); });
+$("prev").addEventListener("click", () => { $("scelta").selectedIndex++; selezionata = parseInt($("scelta").value, 10); disegna(); });
+$("next").addEventListener("click", () => { $("scelta").selectedIndex--; selezionata = parseInt($("scelta").value, 10); disegna(); });
+
+function blocca(testo) {
+  $("blocco-testo").textContent = testo;
+  $("blocco").hidden = false;
+  $("app").hidden = true;
+}
+
+async function avvia() {
+  $("demo").hidden = !DEMO;
+  // Il link personale è tipo .../#invito=CODICE: lo salviamo e lo togliamo dalla barra degli indirizzi
+  const daLink = new URLSearchParams(location.hash.slice(1)).get("invito");
+  if (daLink) {
+    scrivi("ff-invito", daLink);
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  invito = daLink || leggi("ff-invito");
+  if (!invito) return blocca("Questa classifica è solo su invito. Chiedi il tuo link personale a chi l'ha creata.");
+  try {
+    mioNome = await chiSono();
+  } catch (e) {
+    return blocca("Impossibile contattare il server: " + e.message);
+  }
+  if (!mioNome) return blocca("Il tuo link d'invito non è valido o è stato revocato. Chiedine uno nuovo.");
+  $("saluto").textContent = `Ciao ${mioNome}! Questo dispositivo ora è collegato al tuo invito.`;
+  $("app").hidden = false;
+  $("sped").value = spedizioneDiOggi();
+  ricarica();
+  setInterval(ricarica, 60000);
+}
+
+avvia();
+</script>
+</body>
+</html>
