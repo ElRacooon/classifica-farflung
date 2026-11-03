@@ -9,17 +9,19 @@
     --bg: #f4f1ea; --card: #fffdf8; --ink: #1f2a2e; --muted: #6b7473; --line: #e3ddd0;
     --accent: #1f6f5c; --accent-ink: #ffffff; --soft: #e7f1ec; --gold: #b8901a;
     --err: #b3402a; --me: #fff4d1;
+    --trama-1: rgba(31, 42, 46, .07); --trama-2: rgba(31, 42, 46, .13); --trama-3: rgba(255, 255, 255, .7);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #121816; --card: #1a2220; --ink: #e8ece9; --muted: #93a09b; --line: #2a3532;
       --accent: #4fb393; --accent-ink: #0d1412; --soft: #1f2f2a; --gold: #e0bd4a;
       --err: #e07a62; --me: #3a3420;
+      --trama-1: rgba(232, 236, 233, .05); --trama-2: rgba(232, 236, 233, .10); --trama-3: rgba(18, 24, 22, .9);
     }
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
+    margin: 0; background-color: var(--bg); background-size: 132px 132px; color: var(--ink);
     font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -62,17 +64,35 @@
   td.num, th.num { text-align: right; }
   td.pos { width: 2.5em; font-weight: 700; }
   tr.me td { background: var(--me); }
+  tr.cliccabile { cursor: pointer; }
+  tr.cliccabile:hover td { background: var(--soft); }
+  tr.dettaglio td { font-size: 14px; background: var(--bg); line-height: 1.6; }
+  tr.dettaglio a { color: var(--accent); font-weight: 600; }
+  .freccia { color: var(--muted); font-size: 12px; margin-left: 4px; }
+  .muted { color: var(--muted); }
   .empty { color: var(--muted); padding: 14px 0; text-align: center; }
   .letto { margin-top: 8px; font-size: 14px; font-weight: 600; min-height: 1.2em; }
   .nota { margin: -6px 0 12px; color: var(--muted); font-size: 13px; }
   .velo { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; }
   .velo p { margin: 0 0 10px; }
   .chat-lista { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
-  .bolla {
-    background: var(--soft); border-radius: 12px; padding: 8px 12px; max-width: 85%;
-    align-self: flex-start; overflow-wrap: anywhere;
+  .riga-chat { display: flex; gap: 8px; align-items: flex-end; align-self: flex-start; max-width: 90%; }
+  .riga-chat.mio { align-self: flex-end; flex-direction: row-reverse; }
+  .bolla { background: var(--soft); border-radius: 12px; padding: 8px 12px; min-width: 0; overflow-wrap: anywhere; }
+  .riga-chat.mio .bolla { background: var(--accent); color: var(--accent-ink); }
+  .avatar {
+    display: inline-flex; align-items: center; justify-content: center; flex: none;
+    width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle;
+    margin-right: 8px; color: #fff; font-size: 13px; font-weight: 700;
   }
-  .bolla.mio { background: var(--accent); color: var(--accent-ink); align-self: flex-end; }
+  .riga-chat .avatar { margin-right: 0; }
+  .avatar.grande { width: 52px; height: 52px; font-size: 22px; margin-right: 0; }
+  .profilo { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .profilo .azioni { font-size: 14px; }
+  .link-btn {
+    background: none; color: var(--accent); padding: 0; font-weight: 600; font-size: 14px;
+    text-decoration: underline; cursor: pointer;
+  }
   .bolla .meta { font-size: 12px; opacity: .75; margin-bottom: 2px; }
   .chat-form { display: flex; gap: 8px; margin-top: 12px; }
   .chat-form input { flex: 1; min-width: 0; }
@@ -99,7 +119,16 @@
   <div id="app" hidden>
   <section class="card">
     <h2>Inserisci il tuo risultato</h2>
-    <p id="saluto" style="margin:0;color:var(--muted)"></p>
+    <div class="profilo">
+      <span id="mio-avatar"></span>
+      <div>
+        <div id="saluto"></div>
+        <div class="azioni">
+          <button id="foto-cambia" class="link-btn">Cambia foto profilo</button>
+          <input id="foto-file" type="file" accept="image/*" hidden>
+        </div>
+      </div>
+    </div>
     <label for="testo">Risultato condiviso da Farflung</label>
     <textarea id="testo" placeholder="Incolla qui il testo del pulsante «Condividi»"></textarea>
     <div id="letto" class="letto" aria-live="polite"></div>
@@ -158,6 +187,8 @@ let memoriaDemo = [];
 let memoriaChat = [];
 let messaggi = [];
 let spoilerOk = false;
+let foto = {};  // nome -> immagine (data URL)
+const aperti = new Set();  // giocatori con il dettaglio aperto nella classifica giornaliera
 let invito = null;   // codice personale, arriva dal link #invito=...
 let mioNome = null;
 
@@ -224,7 +255,7 @@ async function inserisci(riga) {
   if (DEMO) {
     const doppio = memoriaDemo.some(x => x.spedizione === riga.spedizione && x.nome === mioNome);
     if (doppio) throw Object.assign(new Error("doppio"), { doppio: true });
-    memoriaDemo.push({ nome: mioNome, spedizione: riga.spedizione, km: riga.km, created_at: new Date().toISOString() });
+    memoriaDemo.push({ nome: mioNome, spedizione: riga.spedizione, km: riga.km, testo: riga.testo, created_at: new Date().toISOString() });
     scrivi("ff-demo", JSON.stringify(memoriaDemo));
     return;
   }
@@ -238,6 +269,46 @@ async function caricaChat() {
     return memoriaChat.filter(m => Date.parse(m.created_at) > limite);
   }
   return rpc("chat", { p_codice: invito });
+}
+
+async function caricaFoto() {
+  let elenco;
+  if (DEMO) {
+    try { elenco = Object.entries(JSON.parse(leggi("ff-foto") || "{}")).map(([nome, f]) => ({ nome, foto: f })); } catch { elenco = []; }
+  } else {
+    elenco = await rpc("foto_profilo", { p_codice: invito });
+  }
+  foto = Object.fromEntries(elenco.map(x => [x.nome, x.foto]));
+}
+
+async function salvaFoto(dataUrl) {
+  if (DEMO) {
+    let tutte = {}; try { tutte = JSON.parse(leggi("ff-foto") || "{}"); } catch {}
+    tutte[mioNome] = dataUrl;
+    scrivi("ff-foto", JSON.stringify(tutte));
+    return;
+  }
+  await rpc("imposta_foto", { p_codice: invito, p_foto: dataUrl });
+}
+
+// Ritaglia al centro e rimpicciolisce a 160x160 (circa 10 KB)
+async function riduciImmagine(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, ko) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => ko(new Error("Questo file non sembra un'immagine."));
+      i.src = url;
+    });
+    const lato = 160, s = Math.min(img.naturalWidth, img.naturalHeight);
+    const c = document.createElement("canvas");
+    c.width = c.height = lato;
+    c.getContext("2d").drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, lato, lato);
+    return c.toDataURL("image/jpeg", 0.82);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 async function scriviMessaggio(testo) {
@@ -254,6 +325,18 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<"
 function fmt(n) { return Math.round(n).toLocaleString("de-DE"); }  // "9.870" (it-IT non separa le migliaia sotto 10.000)
 function medaglia(i) { return ["🥇", "🥈", "🥉"][i] || String(i + 1); }
 function ioSono(nome) { return nome === mioNome; }
+
+function colore(nome) {
+  let h = 0;
+  for (const c of nome) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `hsl(${h} 45% 42%)`;
+}
+
+// Foto profilo, oppure l'iniziale su un cerchio colorato
+function avatar(nome, classe = "") {
+  if (foto[nome]) return `<img class="avatar ${classe}" src="${esc(foto[nome])}" alt="">`;
+  return `<span class="avatar ${classe}" style="background:${colore(nome)}" aria-hidden="true">${esc(nome.charAt(0).toUpperCase())}</span>`;
+}
 
 function posizioni(lista, valore) {
   // stesso punteggio = stessa posizione
@@ -277,10 +360,29 @@ function disegnaGiorno() {
   const lista = righe.filter(r => r.spedizione === selezionata).sort((a, b) => b.km - a.km);
   if (!lista.length) return `<div class="empty">Ancora nessun risultato per questa spedizione.</div>`;
   const pos = posizioni(lista, r => r.km);
+  // niente spoiler: le risposte degli altri di oggi si vedono dopo aver inviato le proprie
+  const puoVedere = selezionata < spedizioneDiOggi() || giocatoOggi() || spoilerOk;
   return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km</th></tr></thead><tbody>` +
-    lista.map((r, i) => `<tr class="${ioSono(r.nome) ? "me" : ""}"><td class="pos">${medaglia(pos[i])}</td>` +
-      `<td>${esc(r.nome)}</td><td class="num">${fmt(r.km)}</td></tr>`).join("") +
+    lista.map((r, i) => {
+      const aperto = aperti.has(r.nome);
+      return `<tr class="cliccabile ${ioSono(r.nome) ? "me" : ""}" data-nome="${esc(r.nome)}" aria-expanded="${aperto}">` +
+        `<td class="pos">${medaglia(pos[i])}</td>` +
+        `<td>${avatar(r.nome)}${esc(r.nome)}<span class="freccia">${aperto ? "▾" : "▸"}</span></td>` +
+        `<td class="num">${fmt(r.km)}</td></tr>` +
+        (aperto ? `<tr class="dettaglio"><td></td><td colspan="2">${dettaglio(r, puoVedere || ioSono(r.nome))}</td></tr>` : "");
+    }).join("") +
     `</tbody></table>`;
+}
+
+function dettaglio(r, puoVedere) {
+  if (!puoVedere) return `<span class="muted">Invia prima il tuo risultato di oggi per vedere le risposte degli altri.</span>`;
+  const testo = r.testo || "";
+  const link = (testo.match(/https:\/\/farflung\.game\/[^\s<>"']+/) || [])[0];
+  const risposte = testo.split(/\r?\n/).map(s => s.trim())
+    .filter(s => s && !/^https?:\/\//i.test(s) && !/^farflung\s*#/i.test(s));
+  if (!risposte.length && !link) return `<span class="muted">Nessun dettaglio salvato per questo risultato.</span>`;
+  return risposte.map(esc).join("<br>") +
+    (link ? `${risposte.length ? "<br>" : ""}<a href="${esc(link)}" target="_blank" rel="noopener">Apri il risultato su Farflung ↗</a>` : "");
 }
 
 function disegnaGenerale() {
@@ -298,7 +400,7 @@ function disegnaGenerale() {
   const pos = posizioni(lista, g => g.totale);
   return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km totali</th><th class="num">Media</th><th class="num">🏆</th></tr></thead><tbody>` +
     lista.map((g, i) => `<tr class="${ioSono(g.nome) ? "me" : ""}"><td class="pos">${medaglia(pos[i])}</td>` +
-      `<td>${esc(g.nome)}</td><td class="num">${fmt(g.totale)}</td>` +
+      `<td>${avatar(g.nome)}${esc(g.nome)}</td><td class="num">${fmt(g.totale)}</td>` +
       `<td class="num">${fmt(g.totale / g.partite)}</td><td class="num">${g.vittorie}</td></tr>`).join("") +
     `</tbody></table>`;
 }
@@ -317,17 +419,21 @@ function oraDi(iso) {
   return d.toDateString() === new Date().toDateString() ? ora : "ieri " + ora;
 }
 
+function giocatoOggi() {
+  return righe.some(r => r.nome === mioNome && r.spedizione === spedizioneDiOggi());
+}
+
 function disegnaChat() {
   // Finché non hai inviato il risultato di oggi la chat resta coperta, per evitare spoiler
-  const giocatoOggi = righe.some(r => r.nome === mioNome && r.spedizione === spedizioneDiOggi());
-  const coperta = !giocatoOggi && !spoilerOk;
+  const coperta = !giocatoOggi() && !spoilerOk;
   $("chat-velo").hidden = !coperta;
   $("chat-corpo").hidden = coperta;
   if (coperta) return;
   const lista = $("chat-lista");
   const eraInFondo = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 40;
   lista.innerHTML = messaggi.length
-    ? messaggi.map(m => `<div class="bolla ${ioSono(m.nome) ? "mio" : ""}"><div class="meta">${esc(m.nome)} · ${oraDi(m.created_at)}</div>${esc(m.testo)}</div>`).join("")
+    ? messaggi.map(m => `<div class="riga-chat ${ioSono(m.nome) ? "mio" : ""}">${avatar(m.nome)}` +
+        `<div class="bolla"><div class="meta">${esc(m.nome)} · ${oraDi(m.created_at)}</div>${esc(m.testo)}</div></div>`).join("")
     : `<div class="empty">Nessun messaggio nelle ultime 24 ore.</div>`;
   if (eraInFondo) lista.scrollTop = lista.scrollHeight;
 }
@@ -344,6 +450,8 @@ async function ricaricaChat() {
 
 async function ricarica() {
   try {
+    await caricaFoto().catch(() => {});  // senza foto.sql si usano le iniziali
+    disegnaMioAvatar();
     righe = await caricaTutti();
     disegna();
   } catch (e) {
@@ -371,7 +479,7 @@ $("invia").addEventListener("click", async () => {
   if (spedizione > spedizioneDiOggi()) return messaggio("Quella spedizione non è ancora uscita.", "err");
   $("invia").disabled = true;
   try {
-    await inserisci({ spedizione, km, testo: null });  // salviamo solo il punteggio, non le risposte
+    await inserisci({ spedizione, km, testo: $("testo").value.trim().slice(0, 1500) });
     messaggio(`Fatto! ${fmt(km)} km registrati per la spedizione #${spedizione}.`, "ok");
     $("testo").value = ""; $("letto").textContent = ""; letto = { sped: null, km: null };
     selezionata = spedizione; vista = "giorno";
@@ -387,7 +495,35 @@ $("invia").addEventListener("click", async () => {
   }
 });
 
-$("chat-mostra").addEventListener("click", () => { spoilerOk = true; disegnaChat(); });
+function disegnaMioAvatar() { $("mio-avatar").innerHTML = avatar(mioNome, "grande"); }
+
+$("foto-cambia").addEventListener("click", () => $("foto-file").click());
+
+$("foto-file").addEventListener("change", async () => {
+  const file = $("foto-file").files[0];
+  $("foto-file").value = "";
+  if (!file) return;
+  try {
+    const dataUrl = await riduciImmagine(file);
+    await salvaFoto(dataUrl);
+    foto[mioNome] = dataUrl;
+    disegnaMioAvatar();
+    disegna();
+    messaggio("Foto profilo aggiornata!", "ok");
+  } catch (e) {
+    messaggio("Foto non salvata: " + e.message, "err");
+  }
+});
+
+$("chat-mostra").addEventListener("click", () => { spoilerOk = true; disegna(); });
+
+$("classifica").addEventListener("click", (ev) => {
+  const riga = ev.target.closest("tr[data-nome]");
+  if (!riga || ev.target.closest("a")) return;
+  const nome = riga.dataset.nome;
+  aperti.has(nome) ? aperti.delete(nome) : aperti.add(nome);
+  disegna();
+});
 
 $("chat-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -413,6 +549,24 @@ $("scelta").addEventListener("change", () => { selezionata = parseInt($("scelta"
 $("prev").addEventListener("click", () => { $("scelta").selectedIndex++; selezionata = parseInt($("scelta").value, 10); disegna(); });
 $("next").addEventListener("click", () => { $("scelta").selectedIndex--; selezionata = parseInt($("scelta").value, 10); disegna(); });
 
+// --- Sfondo: trama di procioni (colori presi dal tema chiaro/scuro) ---
+function disegnaTrama() {
+  const st = getComputedStyle(document.documentElement);
+  const [c1, c2, c3] = ["--trama-1", "--trama-2", "--trama-3"].map(v => st.getPropertyValue(v).trim());
+  const procione = `
+    <path d="M-20-12 L-25-31 L-7-21Z M20-12 L25-31 L7-21Z" fill="${c1}"/>
+    <path d="M-24-8 Q-24-25 0-25 Q24-25 24-8 Q24 9 0 21 Q-24 9 -24-8Z" fill="${c1}"/>
+    <path d="M-22-6 Q-12-15 -3-7 L0-3 L3-7 Q12-15 22-6 Q18 5 8 2 L0 5 L-8 2 Q-18 5 -22-6Z" fill="${c2}"/>
+    <circle cx="-10" cy="-5" r="3" fill="${c3}"/><circle cx="10" cy="-5" r="3" fill="${c3}"/>
+    <ellipse cx="0" cy="11" rx="4.5" ry="3" fill="${c2}"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="132" height="132" viewBox="0 0 132 132">
+    <g transform="translate(33 38) rotate(-12) scale(.8)">${procione}</g>
+    <g transform="translate(99 104) rotate(10) scale(.8)">${procione}</g></svg>`;
+  document.body.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+disegnaTrama();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", disegnaTrama);
+
 function blocca(testo) {
   $("blocco-testo").textContent = testo;
   $("blocco").hidden = false;
@@ -435,7 +589,8 @@ async function avvia() {
     return blocca("Impossibile contattare il server: " + e.message);
   }
   if (!mioNome) return blocca("Il tuo link d'invito non è valido o è stato revocato. Chiedine uno nuovo.");
-  $("saluto").textContent = `Ciao ${mioNome}! Questo dispositivo ora è collegato al tuo invito.`;
+  $("saluto").textContent = `Ciao ${mioNome}!`;
+  disegnaMioAvatar();
   $("app").hidden = false;
   ricarica();
   ricaricaChat();
