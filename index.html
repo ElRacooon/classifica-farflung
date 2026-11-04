@@ -163,7 +163,7 @@
 
   <section class="card">
     <h2>💬 Chat</h2>
-    <p class="nota">I messaggi spariscono dopo 24 ore.</p>
+    <p class="nota">La chat si azzera ogni giorno a mezzanotte.</p>
     <div id="chat-velo" class="velo">
       <p>Non hai ancora inviato il risultato di oggi: nella chat potrebbero esserci spoiler.</p>
       <button id="chat-mostra" class="ghost">Mostra comunque</button>
@@ -277,8 +277,8 @@ async function inserisci(riga) {
 async function caricaChat() {
   if (DEMO) {
     try { memoriaChat = JSON.parse(leggi("ff-chat") || "[]"); } catch {}
-    const limite = Date.now() - 86400000;
-    return memoriaChat.filter(m => Date.parse(m.created_at) > limite);
+    const limite = new Date().setHours(0, 0, 0, 0);  // mezzanotte di oggi
+    return memoriaChat.filter(m => Date.parse(m.created_at) >= limite);
   }
   return rpc("chat", { p_codice: invito });
 }
@@ -426,9 +426,7 @@ function disegna() {
 }
 
 function oraDi(iso) {
-  const d = new Date(iso);
-  const ora = d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-  return d.toDateString() === new Date().toDateString() ? ora : "ieri " + ora;
+  return new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
 
 function giocatoOggi() {
@@ -446,7 +444,7 @@ function disegnaChat() {
   lista.innerHTML = messaggi.length
     ? messaggi.map(m => `<div class="riga-chat ${ioSono(m.nome) ? "mio" : ""}">${avatar(m.nome)}` +
         `<div class="bolla"><div class="meta">${esc(m.nome)} · ${oraDi(m.created_at)}</div>${esc(m.testo)}</div></div>`).join("")
-    : `<div class="empty">Nessun messaggio nelle ultime 24 ore.</div>`;
+    : `<div class="empty">Ancora nessun messaggio oggi.</div>`;
   if (eraInFondo) lista.scrollTop = lista.scrollHeight;
 }
 
