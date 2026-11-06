@@ -65,6 +65,7 @@
   .tabs button { flex: 1; background: var(--soft); color: var(--ink); }
   .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
   .nav { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .nav[hidden] { display: none; }
   .nav select { flex: 1; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); }
@@ -356,6 +357,10 @@ function posizioni(lista, valore) {
     .reduce((acc, p, i) => (acc.push(p === null ? acc[i - 1] : p), acc), []);
 }
 
+// Punti di giornata: 3 al primo, 2 al secondo, 1 al terzo (a pari km, stessi punti)
+const PUNTI_PODIO = [3, 2, 1];
+function puntiDi(posizione) { return PUNTI_PODIO[posizione] ?? 0; }
+
 function aggiornaScelta() {
   const oggi = spedizioneDiOggi();
   const elenco = [...new Set([oggi, ...righe.map(r => r.spedizione)])].filter(n => n <= oggi).sort((a, b) => b - a);
@@ -374,14 +379,14 @@ function disegnaGiorno() {
   const pos = posizioni(lista, r => r.km);
   // niente spoiler: le risposte degli altri di oggi si vedono dopo aver inviato le proprie
   const puoVedere = selezionata < spedizioneDiOggi() || giocatoOggi() || spoilerOk;
-  return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km</th></tr></thead><tbody>` +
+  return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km</th><th class="num">Punti</th></tr></thead><tbody>` +
     lista.map((r, i) => {
       const aperto = aperti.has(r.nome);
       return `<tr class="cliccabile ${ioSono(r.nome) ? "me" : ""}" data-nome="${esc(r.nome)}" aria-expanded="${aperto}">` +
         `<td class="pos">${medaglia(pos[i])}</td>` +
         `<td>${avatar(r.nome)}${esc(r.nome)}<span class="freccia">${aperto ? "▾" : "▸"}</span></td>` +
-        `<td class="num">${fmt(r.km)}</td></tr>` +
-        (aperto ? `<tr class="dettaglio"><td></td><td colspan="2">${dettaglio(r, puoVedere || ioSono(r.nome))}</td></tr>` : "");
+        `<td class="num">${fmt(r.km)}</td><td class="num"><strong>${puntiDi(pos[i])}</strong></td></tr>` +
+        (aperto ? `<tr class="dettaglio"><td></td><td colspan="3">${dettaglio(r, puoVedere || ioSono(r.nome))}</td></tr>` : "");
     }).join("") +
     `</tbody></table>`;
 }
@@ -398,22 +403,26 @@ function dettaglio(r, puoVedere) {
 }
 
 function disegnaGenerale() {
-  const migliori = {};
-  for (const r of righe) migliori[r.spedizione] = Math.max(migliori[r.spedizione] ?? -1, r.km);
   const giocatori = {};
   for (const r of righe) {
     const k = r.nome.toLowerCase();
-    const g = giocatori[k] ??= { nome: r.nome, totale: 0, partite: 0, vittorie: 0 };
+    const g = giocatori[k] ??= { nome: r.nome, totale: 0, partite: 0, punti: 0 };
     g.nome = r.nome; g.totale += r.km; g.partite++;
-    if (r.km === migliori[r.spedizione]) g.vittorie++;
   }
-  const lista = Object.values(giocatori).sort((a, b) => b.totale - a.totale);
+  // I punti si ricalcolano sempre da tutti i risultati salvati, giorni passati compresi
+  for (const sped of new Set(righe.map(r => r.spedizione))) {
+    const delGiorno = righe.filter(r => r.spedizione === sped).sort((a, b) => b.km - a.km);
+    const pos = posizioni(delGiorno, r => r.km);
+    delGiorno.forEach((r, i) => { giocatori[r.nome.toLowerCase()].punti += puntiDi(pos[i]); });
+  }
+  // A pari punti conta chi ha più km totali
+  const lista = Object.values(giocatori).sort((a, b) => b.punti - a.punti || b.totale - a.totale);
   if (!lista.length) return `<div class="empty">Ancora nessun risultato.</div>`;
-  const pos = posizioni(lista, g => g.totale);
-  return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Km totali</th><th class="num">Media</th><th class="num">🏆</th></tr></thead><tbody>` +
+  const pos = posizioni(lista, g => `${g.punti}|${g.totale}`);
+  return `<table><thead><tr><th></th><th>Giocatore</th><th class="num">Punti</th><th class="num">Km totali</th><th class="num">Media</th></tr></thead><tbody>` +
     lista.map((g, i) => `<tr class="${ioSono(g.nome) ? "me" : ""}"><td class="pos">${medaglia(pos[i])}</td>` +
-      `<td>${avatar(g.nome)}${esc(g.nome)}</td><td class="num">${fmt(g.totale)}</td>` +
-      `<td class="num">${fmt(g.totale / g.partite)}</td><td class="num">${g.vittorie}</td></tr>`).join("") +
+      `<td>${avatar(g.nome)}${esc(g.nome)}</td><td class="num"><strong>${g.punti}</strong></td>` +
+      `<td class="num">${fmt(g.totale)}</td><td class="num">${fmt(g.totale / g.partite)}</td></tr>`).join("") +
     `</tbody></table>`;
 }
 
