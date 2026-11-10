@@ -85,7 +85,7 @@
   .velo { background: var(--soft); border-radius: 10px; padding: 14px; text-align: center; }
   .velo p { margin: 0 0 10px; }
   .chat-lista { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
-  .riga-chat { display: flex; gap: 8px; align-items: flex-end; align-self: flex-start; max-width: 90%; }
+  .riga-chat { display: flex; gap: 8px; align-items: flex-start; align-self: flex-start; max-width: 90%; }
   .riga-chat.mio { align-self: flex-end; flex-direction: row-reverse; }
   .bolla { background: var(--soft); border-radius: 12px; padding: 8px 12px; min-width: 0; overflow-wrap: anywhere; }
   .riga-chat.mio .bolla { background: var(--accent); color: var(--accent-ink); }
@@ -95,6 +95,22 @@
     margin-right: 8px; color: #fff; font-size: 13px; font-weight: 700;
   }
   .riga-chat .avatar { margin-right: 0; }
+  .colonna-chat { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+  .riga-chat.mio .colonna-chat { align-items: flex-end; }
+  .reazioni { display: flex; flex-wrap: wrap; gap: 4px; }
+  .reazione {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 999px;
+    padding: 2px 8px; font-size: 14px; font-weight: 600; line-height: 1.4;
+  }
+  .reazione.attiva { background: var(--soft); border-color: var(--accent); }
+  .reazione.aggiungi { color: var(--muted); font-weight: 500; }
+  span.reazione { cursor: default; }
+  .selettore {
+    display: flex; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 3px 6px; box-shadow: 0 2px 8px rgba(20, 36, 32, .12);
+  }
+  .selettore button { background: none; padding: 4px 6px; font-size: 20px; line-height: 1; border-radius: 8px; }
+  .selettore button:hover { background: var(--soft); }
   .avatar.grande { width: 52px; height: 52px; font-size: 22px; margin-right: 0; }
   .profilo { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
   .profilo .azioni { font-size: 14px; }
@@ -199,6 +215,9 @@ let selezionata = spedizioneDiOggi();
 let memoriaDemo = [];
 let memoriaChat = [];
 let messaggi = [];
+let reazioni = [];            // { messaggio, tipo, nome }
+let selettoreAperto = null;   // id del messaggio con la scelta delle reazioni aperta
+const REAZIONI = { su: "👍", cuore: "❤️", risata: "😂", wow: "😮", triste: "😢", fuoco: "🔥" };
 let spoilerOk = false;
 let foto = {};  // nome -> immagine (data URL)
 const aperti = new Set();  // giocatori con il dettaglio aperto nella classifica giornaliera
@@ -282,6 +301,25 @@ async function caricaChat() {
     return memoriaChat.filter(m => Date.parse(m.created_at) >= limite);
   }
   return rpc("chat", { p_codice: invito });
+}
+
+async function caricaReazioni() {
+  if (DEMO) {
+    try { return JSON.parse(leggi("ff-reazioni") || "[]"); } catch { return []; }
+  }
+  return rpc("reazioni_chat", { p_codice: invito });
+}
+
+// Mette la reazione, o la toglie se c'era già
+async function reagisci(messaggio, tipo) {
+  if (DEMO) {
+    const tutte = await caricaReazioni();
+    const i = tutte.findIndex(r => r.messaggio === messaggio && r.tipo === tipo && r.nome === mioNome);
+    i >= 0 ? tutte.splice(i, 1) : tutte.push({ messaggio, tipo, nome: mioNome });
+    scrivi("ff-reazioni", JSON.stringify(tutte));
+    return;
+  }
+  await rpc("reagisci", { p_codice: invito, p_messaggio: messaggio, p_tipo: tipo });
 }
 
 async function caricaFoto() {
@@ -452,15 +490,35 @@ function disegnaChat() {
   const eraInFondo = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 40;
   lista.innerHTML = messaggi.length
     ? messaggi.map(m => `<div class="riga-chat ${ioSono(m.nome) ? "mio" : ""}">${avatar(m.nome)}` +
-        `<div class="bolla"><div class="meta">${esc(m.nome)} · ${oraDi(m.created_at)}</div>${esc(m.testo)}</div></div>`).join("")
+        `<div class="colonna-chat"><div class="bolla"><div class="meta">${esc(m.nome)} · ${oraDi(m.created_at)}</div>${esc(m.testo)}</div>` +
+        `${disegnaReazioni(m)}</div></div>`).join("")
     : `<div class="empty">Ancora nessun messaggio oggi.</div>`;
   if (eraInFondo) lista.scrollTop = lista.scrollHeight;
+}
+
+function disegnaReazioni(m) {
+  const mio = ioSono(m.nome);  // ai propri messaggi non si reagisce: si vedono solo le reazioni ricevute
+  const chi = {};
+  for (const r of reazioni) if (r.messaggio === m.id) (chi[r.tipo] ??= []).push(r.nome);
+  const etichette = Object.keys(REAZIONI).filter(t => chi[t]).map(t => {
+    const testo = `${REAZIONI[t]} ${chi[t].length}`, nomi = esc(chi[t].join(", "));
+    if (mio) return `<span class="reazione" title="${nomi}">${testo}</span>`;
+    const attiva = chi[t].includes(mioNome) ? "attiva" : "";
+    return `<button type="button" class="reazione ${attiva}" data-msg="${m.id}" data-tipo="${t}" title="${nomi}">${testo}</button>`;
+  }).join("");
+  const aggiungi = mio ? "" : `<button type="button" class="reazione aggiungi" data-apri="${m.id}" aria-label="Aggiungi una reazione">🙂+</button>`;
+  const selettore = !mio && selettoreAperto === m.id
+    ? `<div class="selettore">${Object.entries(REAZIONI).map(([t, e]) =>
+        `<button type="button" data-msg="${m.id}" data-tipo="${t}" aria-label="${t}">${e}</button>`).join("")}</div>`
+    : "";
+  return etichette || aggiungi ? `<div class="reazioni">${etichette}${aggiungi}</div>${selettore}` : "";
 }
 
 async function ricaricaChat() {
   if (document.hidden) return;
   try {
     messaggi = await caricaChat();
+    reazioni = await caricaReazioni().catch(() => []);  // senza reazioni.sql la chat funziona lo stesso
     disegnaChat();
   } catch (e) {
     $("chat-lista").innerHTML = `<div class="empty">Chat non disponibile.<br><small>${esc(e.message)}</small></div>`;
@@ -535,6 +593,29 @@ $("foto-file").addEventListener("change", async () => {
 });
 
 $("chat-mostra").addEventListener("click", () => { spoilerOk = true; disegna(); });
+
+$("chat-lista").addEventListener("click", async (ev) => {
+  const apri = ev.target.closest("[data-apri]");
+  if (apri) {
+    const id = Number(apri.dataset.apri);
+    selettoreAperto = selettoreAperto === id ? null : id;
+    return disegnaChat();
+  }
+  const scelta = ev.target.closest("button[data-tipo]");
+  if (!scelta) return;
+  const messaggio = Number(scelta.dataset.msg), tipo = scelta.dataset.tipo;
+  selettoreAperto = null;
+  // la mostriamo subito, poi la salviamo
+  const i = reazioni.findIndex(r => r.messaggio === messaggio && r.tipo === tipo && r.nome === mioNome);
+  i >= 0 ? reazioni.splice(i, 1) : reazioni.push({ messaggio, tipo, nome: mioNome });
+  disegnaChat();
+  try {
+    await reagisci(messaggio, tipo);
+  } catch (e) {
+    alert("Reazione non salvata: " + e.message);
+  }
+  await ricaricaChat();
+});
 
 $("classifica").addEventListener("click", (ev) => {
   const riga = ev.target.closest("tr[data-nome]");
